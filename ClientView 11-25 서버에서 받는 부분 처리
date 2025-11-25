@@ -1,0 +1,358 @@
+import java.awt.Image;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.Socket;
+
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.SwingConstants;
+import javax.swing.border.EmptyBorder;
+
+public class GameClientView extends JFrame {
+
+	private JPanel contentPane;
+    private JTextField txtInput;
+    private String UserName;
+    private JButton btnSend;
+    private JTextArea textArea;
+    private Socket socket; // 연결소켓
+    private InputStream is;
+    private OutputStream os;
+    private DataInputStream dis;
+    private DataOutputStream dos;
+    private JLabel lblUserName;
+    private JLabel changeBettCount;
+    private JButton BettingUp;
+    private JButton BettingDown;
+    private JButton BettingComplete;
+    private JLabel MybettingLabel;
+    private JLabel OppsitebettingLabel;
+    private JLabel MybettingCount;
+    private JLabel OppsiteCount;
+    private JLabel Mybalance;
+    private JLabel Oppsitebalance;
+    
+    
+    private int currentBet = 0; //배팅 버튼을 누를때 바뀌는 현재의 배팅 값
+    
+    private ImageIcon cardfront;
+    private ImageIcon cardback;
+
+	/**
+	 * Create the frame.
+	 */
+	public GameClientView(String username, String ip, String port) {
+		cardfront = new ImageIcon("./images/CardBack.png"); 
+		cardback = new ImageIcon("./images/CardBack.png");
+		
+		cardfront = new ImageIcon(cardfront.getImage().getScaledInstance(200, 200, Image.SCALE_SMOOTH));
+		cardback = new ImageIcon(cardback.getImage().getScaledInstance(200, 200, Image.SCALE_SMOOTH));
+		
+		
+		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		setBounds(100, 100, 994, 730);
+		contentPane = new JPanel();
+		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
+		setContentPane(contentPane);
+		contentPane.setLayout(null);
+
+		JScrollPane scrollPane = new JScrollPane();
+		scrollPane.setBounds(693, 19, 275, 297);
+		contentPane.add(scrollPane);
+		
+		textArea = new JTextArea();
+		scrollPane.setViewportView(textArea);
+		textArea.setEditable(false);
+
+		txtInput = new JTextField();
+		txtInput.setBounds(745, 326, 223, 40);
+		contentPane.add(txtInput);
+		txtInput.setColumns(10);
+
+		btnSend = new JButton("Play");
+		btnSend.setBounds(771, 471, 173, 96);
+		contentPane.add(btnSend);
+		
+		lblUserName = new JLabel("Name");
+		lblUserName.setHorizontalAlignment(SwingConstants.CENTER);
+		lblUserName.setBounds(27, 602, 67, 40);
+		contentPane.add(lblUserName);
+		setVisible(true);
+		
+		UserName = username;
+		lblUserName.setText(username + ">");
+		
+		
+		changeBettCount = new JLabel("0");
+		changeBettCount.setBounds(440, 597, 101, 51);
+		changeBettCount.setHorizontalAlignment(JLabel.CENTER);
+		contentPane.add(changeBettCount);
+		
+		
+		
+		BettingUp = new JButton("배팅 상승");
+		BettingUp.setBounds(553, 592, 130, 61);
+		BettingUp.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				currentBet += 10;
+				changeBettCount.setText(Integer.toString(currentBet));
+			}
+		});
+		
+		contentPane.add(BettingUp);
+		
+		BettingDown = new JButton("배팅 감소");
+		BettingDown.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				if (currentBet > 0) {
+                    currentBet -= 10;
+                    changeBettCount.setText(Integer.toString(currentBet));
+                }
+			}
+		});
+		BettingDown.setBounds(296, 593, 130, 59);
+		contentPane.add(BettingDown);
+		
+//		JLabel MyCardLabel = new JLabel(cardfront);
+//		MyCardLabel.setBounds(251, 208, 150, 163);
+//		contentPane.add(MyCardLabel);
+//		
+//		JLabel OppositeCardLabel = new JLabel(cardback);
+//		OppositeCardLabel.setBounds(424, 27, 150, 163);
+//		contentPane.add(OppositeCardLabel);
+		
+		BettingComplete = new JButton("배팅 완료");
+		BettingComplete.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				try {
+					dos.writeUTF("/BettingComplete "+currentBet); //서버에게 /BettingComplete 배팅값 형식으로 보냄. 서버에서 이 형식으로 받아야함
+					dos.flush();
+				}catch(IOException ex) {
+					ex.printStackTrace();
+				}
+			}
+		});
+		BettingComplete.setBounds(424, 542, 130, 51);
+		contentPane.add(BettingComplete);
+		
+		
+		
+		MybettingLabel = new JLabel("나의 배팅 금액");
+		MybettingLabel.setBounds(45, 82, 109, 14);
+		contentPane.add(MybettingLabel);
+		
+		OppsitebettingLabel = new JLabel("상대 배팅 금액");
+		OppsitebettingLabel.setBounds(45, 106, 109, 14);
+		contentPane.add(OppsitebettingLabel);
+		
+		MybettingCount = new JLabel("0");
+		MybettingCount.setBounds(177, 82, 49, 14);
+		contentPane.add(MybettingCount);
+		
+		OppsiteCount = new JLabel("0");
+		OppsiteCount.setBounds(177, 106, 49, 14);
+		contentPane.add(OppsiteCount);
+		
+		Mybalance = new JLabel("나의 현재 소지금 : ");
+		Mybalance.setBounds(125, 512, 130, 14);
+		contentPane.add(Mybalance);
+		
+		Oppsitebalance = new JLabel("상대 현재 소지금 : ");
+		Oppsitebalance.setBounds(125, 553, 130, 14);
+		contentPane.add(Oppsitebalance);
+		
+		
+		AppendText("User " + username + " connecting " + ip + " " + port + "\n");
+		
+		
+		
+		 try {
+	            socket = new Socket(ip, Integer.parseInt(port));
+	            is = socket.getInputStream();
+	            dis = new DataInputStream(is);
+	            os = socket.getOutputStream();
+	            dos = new DataOutputStream(os);
+
+	            SendMessage("/login " + UserName);
+	            Serveraccept net = new Serveraccept(socket);
+	            net.start();
+	            
+	            PlayShow show = new PlayShow(); //playshow 가져옴
+	            
+	            btnSend.addActionListener(show); //게임시작 버튼으로 눌렀을때 서버로 데이터 받아옴
+	        } catch (NumberFormatException | IOException e) {
+	            e.printStackTrace();
+	            AppendText("connect error");
+	        }
+
+	}
+	
+	 // 화면에 출력
+    public void AppendText(String msg) {
+        textArea.append(msg);
+        textArea.setCaretPosition(textArea.getText().length());
+    }
+    
+    // Server Message를 수신해서 화면에 표시
+    class Serveraccept extends Thread {
+    	//서버 받는 부분 스레드로 계속 받음
+    	private DataInputStream dis;
+
+        public Serveraccept(Socket socket) {
+            try {
+                dis = new DataInputStream(socket.getInputStream());
+            } catch (IOException e) {
+                System.out.println("입력 스트림 에러");
+            }
+        }
+    	
+    	public void run() {
+            while (true) {
+                try {
+                    // Use readUTF to read messages
+                    String msg = dis.readUTF();
+                    AppendText(msg);
+                    if (msg.startsWith("/BettingOK")) { //서버에서 /BettingOK UserName 숫자값으로 왔다고 생각
+                    	String[] parts = msg.split(" ");
+                    	
+                    	String senderName = parts[1];
+                        String confirmedBet = parts[2];
+                        
+                        if(UserName.equals(senderName)) {
+	                        MybettingCount.setText(confirmedBet);
+	                       
+	                        BettingUp.setEnabled(false); //배팅 상승 버튼 비활성화
+	                        BettingDown.setEnabled(false); //배팅 하락 버튼 비활성화
+	                        BettingComplete.setEnabled(false); //배팅 완료 버튼 비활성화
+	                    }
+                        else{
+                        	OppsiteCount.setText(confirmedBet);
+                        }
+                    }
+                    //배팅 결과 전달 받음 형식: /BettingOk1은 무조건 아래 자기 카드를 주는 것.
+                    //숫자 유저이름 + 배팅금액 + 현재 금액 + 이미지 형식으로 받음
+                    if(msg.startsWith("/BettingOK1")) {
+                    	String[] parts = msg.split(" ");
+                    	String senderName = parts[1];
+                        String confirmedBet = parts[2];
+                        String currentbalance = parts[3];
+                        String cardImg = parts[4]; //카드가 들어있는 주소 문자열이 들어옴
+                        if(UserName.equals(senderName)) {
+                        	Mybalance.setText("나의 현재 소지금 : "+ currentbalance);
+                        }	
+                        	
+                    }
+                    //BettingOk2는 무조건 위에 있는 상대방의 카드 정보를 주는 것
+                    if(msg.startsWith("/BettingOK2")) {
+                    	String[] parts = msg.split(" ");
+                    	String senderName = parts[1];
+                        String confirmedBet = parts[2];
+                        String currentbalance = parts[3];
+                        String cardImg = parts[4]; //카드가 들어있는 주소 문자열이 들어옴
+                        
+                        if(!UserName.equals(senderName)) {
+                        	Oppsitebalance.setText("상대 현재 소지금 : "+ currentbalance);
+                        }
+                    }
+                    //소지금 정보 확인
+                    else if(msg.startsWith("/MyMoney1")) { //서버에서 "/MyMoney 잔액" 형식으로 데이터 보냄
+                    	String[] parts = msg.split(" ");
+                        String serverMoney = parts[2];
+                    	Mybalance.setText("나의 현재 소지금 : " + serverMoney);
+                    }
+                    else if(msg.startsWith("/MyMoney2")){
+                    	String[] parts = msg.split(" ");
+                        String serverMoney = parts[2];
+                    	Oppsitebalance.setText("상대 현재 소지금 : " + serverMoney);
+                    }
+                    //play 확인 버튼을 누른뒤 라운드 초기화를 위해 서버에서 데이터를 보내줌
+                    //데이터 형식 유저이름 + 카드 숫자 + 카드 문자열
+                    //requestCard1은 나의 부분만 제공
+                    else if(msg.startsWith("/requestCard1")) {
+                    	String[] parts = msg.split(" ");
+                    	String senderName = parts[1];
+                        String serverMoney = parts[2];
+                        String cardImg = parts[3];
+                        //현재 배팅하는 부분은 1,2들중 하나만 들어가도 됌
+                        currentBet=0;
+                        changeBettCount.setText(Integer.toString(currentBet));
+                        //이 부분도 한번만 실행
+                        BettingUp.setEnabled(true); //배팅 상승 버튼 활성화
+                        BettingDown.setEnabled(true); //배팅 하락 버튼 활성화
+                        BettingComplete.setEnabled(true); //배팅 완료 버튼 활성화
+                        
+                        
+                        if(UserName.equals(senderName)) {
+                        	MybettingCount.setText("0");
+                        }
+                        
+                    }
+                    //requestCard2은 상대의 부분만 제공
+                    else if(msg.startsWith("/requestCard2")) {
+                    	String[] parts = msg.split(" ");
+                    	String senderName = parts[1];
+                        String serverMoney = parts[2];
+                        String cardImg = parts[3];
+                        
+                        if(!UserName.equals(senderName)) {
+                        	OppsiteCount.setText("0");
+                        }
+                    }
+                } catch (IOException e) {
+                    AppendText("dis.read() error");
+                    try {
+                        dos.close();
+                        dis.close();
+                        socket.close();
+                        break;
+                    } catch (Exception ex) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+ // Server에게 데이터로 전송(처음에 있는 username, 포트, ip전달할때만 사용
+    public void SendMessage(String msg) {
+        try {
+            // Use writeUTF to send messages
+            dos.writeUTF(msg);
+        } catch (IOException e) {
+            AppendText("dos.write() error");
+            try {
+                dos.close();
+                dis.close();
+                socket.close();
+            } catch (IOException e1) {
+                e1.printStackTrace();
+                System.exit(0);
+            }
+        }
+    }
+    class PlayShow implements ActionListener // 내부클래스로 서버로부터 정보 받는 이벤트 처리 클래스
+	{
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			// Send button을 눌렀을때 서버로부터 새로운 정보 받기
+			try {
+		        dos.writeUTF("/requestCard");  //  서버에게 새 카드 요청 "/requestCard"로 보내기에 이 문자열로 서버에서 처리하면됌
+		        dos.flush();
+		    } catch (Exception ex) {
+		        ex.printStackTrace();
+		    }
+			
+		}
+	}
+}
