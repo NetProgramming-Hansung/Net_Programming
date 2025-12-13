@@ -1,0 +1,136 @@
+import java.awt.EventQueue;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Image;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JTextField;
+import javax.swing.border.EmptyBorder;
+
+public class GameClientMain extends JFrame {
+
+	private static final long serialVersionUID = 1L;
+	private JPanel contentPane;
+	private JTextField textUserName;
+	private JTextField clientIP;
+	private JTextField Port_Number;
+
+	/**
+	 * Launch the application.
+	 */
+	public static void main(String[] args) {
+		EventQueue.invokeLater(new Runnable() {
+			public void run() {
+				try {
+					GameClientMain frame = new GameClientMain();
+					frame.setVisible(true);
+				} catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+		});
+	}
+	//이미지 패널 클래스 생성
+	class ImagePanel extends JPanel{
+		private Image image;
+		
+		public ImagePanel(String imgpath) {
+			image = new ImageIcon(imgpath).getImage();
+		}
+		//이미지로 패널 그리기
+		@Override
+		protected void paintComponent(Graphics g) {
+			super.paintComponent(g);
+	        g.drawImage(image, 0, 0, getWidth(), getHeight(), this);
+		}
+	}
+	/**
+	 * Create the frame.
+	 */
+	public GameClientMain() {
+		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		setBounds(100, 100, 504, 372);
+		contentPane = new JPanel();
+		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
+		setContentPane(contentPane);
+		contentPane.setLayout(null);
+
+		JPanel panel =  new ImagePanel("./images/gameIntro.png");
+		panel.setBounds(0, 0, 511, 335);
+		contentPane.add(panel);
+		panel.setLayout(null);
+		
+		JLabel lblNewLabel = new JLabel("UserName");
+		lblNewLabel.setBounds(12, 251, 107, 28);
+		panel.add(lblNewLabel);
+		
+		textUserName = new JTextField();
+		textUserName.setBounds(12, 280, 107, 20);
+		panel.add(textUserName);
+		textUserName.setColumns(10);
+		
+		JLabel lblNewLabel_1 = new JLabel("IPAddress");
+		lblNewLabel_1.setBounds(328, 39, 85, 14);
+		panel.add(lblNewLabel_1);
+		
+		clientIP = new JTextField();
+		clientIP.setText("127.0.0.1");
+		clientIP.setBounds(415, 36, 72, 20);
+		panel.add(clientIP);
+		clientIP.setColumns(10);
+		
+		//버튼에 이미지 넣기. 이미지 넣을 때 버튼에 사진 크기 맞추기 추가
+		ImageIcon GameStartImg = new ImageIcon("./images/GameStart.png");
+		JButton gameStartBtn = new JButton(new ImageIcon(GameStartImg.getImage().getScaledInstance(107, 45, Image.SCALE_SMOOTH)));
+		
+		gameStartBtn.setBorderPainted(false);
+		gameStartBtn.setContentAreaFilled(false);
+		gameStartBtn.setFocusPainted(false);
+		
+		gameStartBtn.setBounds(203, 255, 107, 45);
+		panel.add(gameStartBtn);
+		
+		
+		Port_Number = new JTextField();
+		Port_Number.setText("3000");
+		Port_Number.setBounds(415, 60, 72, 20);
+		panel.add(Port_Number);
+		Port_Number.setColumns(10);
+		
+		JLabel lblNewLabel_3 = new JLabel("Port Number");
+		lblNewLabel_3.setBounds(328, 63, 72, 14);
+		panel.add(lblNewLabel_3);
+		
+		Myaction action = new Myaction();
+		gameStartBtn.addActionListener(action);
+		textUserName.addActionListener(action);
+		clientIP.addActionListener(action);
+		Port_Number.addActionListener(action);
+		
+		
+
+	}
+	
+	class Myaction implements ActionListener
+	{
+
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			// TODO Auto-generated method stub
+			String userName = textUserName.getText().trim();
+			String ip = clientIP.getText().trim();
+			String port = Port_Number.getText().trim();
+			GameClientView gameView = new GameClientView(userName, ip, port);
+			setVisible(false);
+		}
+		
+		
+		
+	}
+}
