@@ -1,0 +1,812 @@
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Image;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.Socket;
+
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.FloatControl;
+import javax.sound.sampled.LineEvent;
+import javax.sound.sampled.LineListener;
+import javax.swing.BorderFactory;
+import javax.swing.ImageIcon;
+import javax.swing.JButton;
+import javax.swing.JDialog;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.SwingConstants;
+import javax.swing.Timer;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
+
+public class GameClientView extends JFrame {
+
+	
+	private JPanel contentPane;
+    private JTextField txtInput;
+    private String UserName;
+    private JButton btnSend;
+    private JTextArea textArea;
+    private Socket socket; // 연결소켓
+    private InputStream is;
+    private OutputStream os;
+    private DataInputStream dis;
+    private DataOutputStream dos;
+    private JLabel lblUserName;
+    private JLabel OppositeUserName;
+    private JLabel changeBettCount;
+    private JButton BettingUp;
+    private JButton BettingDown;
+    private JButton BettingComplete;
+    private JLabel MybettingLabel;
+    private JLabel OppsitebettingLabel;
+    private JLabel MybettingCount;
+    private JLabel OppsiteCount;
+    private JLabel Mybalance;
+    private JLabel Oppsitebalance;
+    private JScrollPane scrollPane;
+    
+    private JLabel gameResultLabel;
+    
+    private int currentBet = 0; //배팅 버튼을 누를때 바뀌는 현재의 배팅 값
+    private int myBetMoney = 0; // Mybalance는 단순한 라벨이기에 값 저장이 안되서 추가로 계산용 내 소지금 변수
+    
+    private JLabel waitingLabel;
+    private JLabel myCardLabel;       
+    private JLabel oppositeCardLabel;
+
+    
+    class ImagePanel extends JPanel{
+		private Image image;
+		
+		public ImagePanel(String imgpath) {
+			image = new ImageIcon(imgpath).getImage();
+		}
+		//이미지로 패널 그리기
+		@Override
+		protected void paintComponent(Graphics g) {
+			super.paintComponent(g);
+	        g.drawImage(image, 0, 0, getWidth(), getHeight(), this);
+		}
+	}
+    
+    
+    //서버로 받은 문자열로 카드 이미지 설정
+    public void setCardImage(JLabel targetLabel, String imageName) {
+        // 1. 이미지 경로 완성 (서버는 "card_1.png"만 보내주므로 앞에 폴더 경로 붙임)
+        String path = "./images/" + imageName; 
+        
+        // 2. 이미지 로드
+        ImageIcon icon = new ImageIcon(path);
+        
+        // 3. 이미지 크기 조절 라벨 크기에 맞춤
+        Image img = icon.getImage().getScaledInstance(150, 200, Image.SCALE_SMOOTH);
+        
+        // 4. 라벨에 적용
+        targetLabel.setIcon(new ImageIcon(img));
+    }
+	/**
+	 * Create the frame.
+	 */
+	public GameClientView(String username, String ip, String port) {
+	
+		Color infoBgColor = new Color(255, 253, 245);   // 아주 밝은 크림색
+		Color infoTextColor = new Color(60, 45, 40);    // 짙은 갈색
+		Color numBgColor = new Color(80, 45, 20);     // 아주 어두운 배경
+		Color numTextColor = new Color(255, 215, 0);  // 밝은 금색
+		Font numFont = new Font("Verdana", Font.BOLD, 25);
+		Color burgundyColor = new Color(139, 28, 28);    // 와인색
+		Color deepBrownBg = new Color(245, 245, 220);  // 연한 갈색
+		
+		
+		UserName = username;
+		
+		
+		
+		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		setBounds(100, 100, 994, 730);
+//		contentPane = new JPanel();
+		contentPane = new ImagePanel("./images/GameGuiMain.png");
+		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
+		setContentPane(contentPane);
+		contentPane.setLayout(null);
+
+
+		
+		scrollPane = new JScrollPane();
+		scrollPane.setBounds(693, 19, 275, 297);
+		scrollPane.setBorder(BorderFactory.createLineBorder(burgundyColor, 2));
+		scrollPane.getViewport().setBackground(deepBrownBg); 
+		scrollPane.setOpaque(false); 
+		scrollPane.getViewport().setOpaque(true);
+		contentPane.add(scrollPane);
+		
+		textArea = new JTextArea();
+		scrollPane.setViewportView(textArea);
+		textArea.setEditable(false);
+		
+		textArea.setFont(new Font("맑은 고딕", Font.PLAIN, 14));
+		textArea.setBackground(deepBrownBg);
+		
+		txtInput = new JTextField();
+		txtInput.setBounds(745, 326, 223, 40);
+		contentPane.add(txtInput);
+		txtInput.setColumns(10);
+		txtInput.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				if (e.getSource() == txtInput) {
+					String msg = null;
+					msg = String.format("[%s] %s\n", UserName, txtInput.getText());
+					SendMessage(msg);
+					txtInput.setText(""); //  메세지 쓰는창을 비운다.
+					txtInput.requestFocus(); // 커서를 다시 텍스트 필드로 위치시킨다
+				}
+			}
+		});
+		txtInput.setBackground(deepBrownBg);
+		txtInput.setBorder(BorderFactory.createLineBorder(burgundyColor, 2));
+		
+
+		ImageIcon rawIcon = new ImageIcon("./images/PlayLayout.png");
+		Image scaled = rawIcon.getImage().getScaledInstance(173, 96, Image.SCALE_SMOOTH);
+		ImageIcon btnIcon = new ImageIcon(scaled);
+		
+		btnSend = new JButton("Play");
+		btnSend.setBounds(771, 471, 173, 96);
+		btnSend.setIcon(btnIcon);
+		btnSend.setHorizontalTextPosition(SwingConstants.CENTER);
+		btnSend.setVerticalTextPosition(SwingConstants.CENTER);
+		btnSend.setFont(new Font("맑은 고딕", Font.BOLD, 22));
+		btnSend.setForeground(numTextColor);
+		btnSend.setContentAreaFilled(false);
+		btnSend.setBorderPainted(false);
+		btnSend.setFocusPainted(false);
+		btnSend.addMouseListener(new java.awt.event.MouseAdapter() {			
+		    public void mouseEntered(java.awt.event.MouseEvent e) {		    	
+		        btnSend.setForeground(new Color(255, 255, 255)); // hover
+		    }
+		    public void mouseExited(java.awt.event.MouseEvent e) {
+		        btnSend.setForeground(numTextColor); // 기본색
+		    }
+		});
+		btnSend.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				SoundManager.playClickSound("mouse-click-290204.wav");
+			}
+		});
+		contentPane.add(btnSend);
+		
+		lblUserName = new JLabel("Name");
+		lblUserName.setHorizontalAlignment(SwingConstants.CENTER);
+		lblUserName.setFont(new Font("맑은 고딕", Font.BOLD, 16));
+		lblUserName.setOpaque(true);
+		lblUserName.setBackground(new Color(220, 200, 165));
+		lblUserName.setBounds(230, 398, 109, 40);
+		lblUserName.setBorder(new LineBorder(new Color(139, 69, 19), 2));
+		lblUserName.setText(UserName);
+		contentPane.add(lblUserName);
+		setVisible(true);
+		
+		OppositeUserName = new JLabel("상대");
+		OppositeUserName.setHorizontalAlignment(SwingConstants.CENTER);
+		OppositeUserName.setFont(new Font("맑은 고딕", Font.BOLD, 16));
+		OppositeUserName.setOpaque(true);
+		OppositeUserName.setBackground(new Color(220, 200, 165));
+		OppositeUserName.setBorder(new LineBorder(new Color(139, 69, 19), 2));
+		OppositeUserName.setBounds(524, 398, 109, 40);
+		contentPane.add(OppositeUserName);
+		
+		
+		changeBettCount = new JLabel("0");
+		changeBettCount.setBounds(440, 597, 101, 51);
+		changeBettCount.setHorizontalAlignment(JLabel.CENTER);
+		changeBettCount.setOpaque(true);
+		changeBettCount.setBackground(numBgColor);
+		changeBettCount.setForeground(numTextColor);
+		changeBettCount.setFont(numFont);
+		changeBettCount.setBorder(BorderFactory.createLineBorder(Color.black, 2));
+		contentPane.add(changeBettCount);
+		
+		ImageIcon betUpIcon = new ImageIcon("./images/BettingUp.png");
+		Image betUpImg = betUpIcon.getImage().getScaledInstance(130, 100, Image.SCALE_SMOOTH);
+		
+		BettingUp = new JButton(new ImageIcon(betUpImg));
+		
+		BettingUp.setBorderPainted(false);      // 테두리 없애기
+		
+		BettingUp.setBounds(563, 500, 130, 90);
+		BettingUp.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				SoundManager.playClickSound("coin-recieved-230517.wav");
+				if (currentBet + 10 <= myBetMoney) {
+		            currentBet += 10;
+		            changeBettCount.setText(Integer.toString(currentBet));
+		        }
+			}
+		});
+		
+		contentPane.add(BettingUp);
+		
+		ImageIcon betDownIcon = new ImageIcon("./images/BettingDown.png");
+		Image betDownImg = betDownIcon.getImage().getScaledInstance(130, 100, Image.SCALE_SMOOTH);
+		
+		BettingDown = new JButton(new ImageIcon(betDownImg));
+		BettingDown.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				SoundManager.playClickSound("coin-recieved-230517.wav");
+				if (currentBet > 0) {
+                    currentBet -= 10;
+                    changeBettCount.setText(Integer.toString(currentBet));
+                }
+			}
+		});
+		
+		BettingDown.setBorderPainted(false);
+		BettingDown.setBounds(286, 500, 130, 90);
+		contentPane.add(BettingDown);
+		
+		myCardLabel = new JLabel();
+		myCardLabel.setBounds(209, 188, 150, 200);
+		setCardImage(myCardLabel, "Card_0.png");
+		contentPane.add(myCardLabel);
+		
+		oppositeCardLabel = new JLabel();
+		oppositeCardLabel.setBounds(500, 188, 150, 200);
+		setCardImage(oppositeCardLabel, "Card_0.png");
+		contentPane.add(oppositeCardLabel);
+		
+		BettingComplete = new JButton(" 배팅 ");
+		BettingComplete.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				try {
+					//사운드 이름을 넣는 방법
+					SoundManager.playClickSound("mouse-click-290204.wav");
+					dos.writeUTF("/BettingComplete "+currentBet); //서버에게 /BettingComplete 배팅값 형식으로 보냄. 서버에서 이 형식으로 받아야함
+					dos.flush();
+				}catch(IOException ex) {
+					ex.printStackTrace();
+				}
+			}
+		});
+		BettingComplete.addMouseListener(new java.awt.event.MouseAdapter() {
+		    public void mouseEntered(java.awt.event.MouseEvent e) {
+		        BettingComplete.setForeground(new Color(255, 255, 255)); 
+		    }
+		    public void mouseExited(java.awt.event.MouseEvent e) {
+		        BettingComplete.setForeground(new Color(255, 215, 0)); 
+		    }
+		});
+		BettingComplete.setBackground(new Color(139, 28, 28));   
+		BettingComplete.setForeground(numTextColor);
+
+		
+		BettingComplete.setBorder(
+		    BorderFactory.createLineBorder(new Color(90, 20, 20), 3)
+		);
+
+		
+		BettingComplete.setFont(new Font("맑은 고딕", Font.BOLD, 18));
+		BettingComplete.setBounds(424, 542, 130, 51);
+		contentPane.add(BettingComplete);
+		
+		
+		
+		MybettingLabel = new JLabel("나의 배팅 금액");
+		MybettingLabel.setBounds(45, 128, 109, 30);
+		MybettingLabel.setOpaque(true);
+		MybettingLabel.setBackground(infoBgColor);
+		MybettingLabel.setForeground(infoTextColor);
+		MybettingLabel.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+		MybettingLabel.setHorizontalAlignment(SwingConstants.CENTER); 
+		MybettingLabel.setBorder(BorderFactory.createLineBorder(burgundyColor, 2));
+		contentPane.add(MybettingLabel);
+		
+		OppsitebettingLabel = new JLabel("상대 배팅 금액");
+		OppsitebettingLabel.setBounds(45, 82, 109, 30);
+		OppsitebettingLabel.setOpaque(true);
+		OppsitebettingLabel.setBackground(infoBgColor);
+		OppsitebettingLabel.setForeground(infoTextColor);
+		OppsitebettingLabel.setFont(new Font("맑은 고딕", Font.BOLD, 12));
+		OppsitebettingLabel.setHorizontalAlignment(SwingConstants.CENTER); 
+		OppsitebettingLabel.setBorder(BorderFactory.createLineBorder(burgundyColor, 2));
+		contentPane.add(OppsitebettingLabel);
+		
+		MybettingCount = new JLabel("0");
+		MybettingCount.setBounds(177, 86, 70, 25);
+		MybettingCount.setOpaque(true);
+		MybettingCount.setBackground(numBgColor);
+		MybettingCount.setForeground(numTextColor);
+		MybettingCount.setHorizontalAlignment(SwingConstants.RIGHT);
+		MybettingCount.setFont(numFont);
+		MybettingCount.setBorder(BorderFactory.createLineBorder(Color.black, 2));
+		contentPane.add(MybettingCount);
+		
+		OppsiteCount = new JLabel("0");
+		OppsiteCount.setBounds(177, 132, 70, 25);
+		OppsiteCount.setOpaque(true);
+		OppsiteCount.setBackground(numBgColor);
+		OppsiteCount.setForeground(numTextColor);
+		OppsiteCount.setHorizontalAlignment(SwingConstants.RIGHT);
+		OppsiteCount.setFont(numFont);
+		OppsiteCount.setBorder(BorderFactory.createLineBorder(Color.black, 2));
+		contentPane.add(OppsiteCount);
+		
+
+		
+		Mybalance = new JLabel("나의 현재 소지금 : ");
+		Mybalance.setBounds(45, 501, 194, 30);
+		Mybalance.setOpaque(true);
+		Mybalance.setBackground(deepBrownBg);
+		Mybalance.setForeground(infoTextColor);
+		Mybalance.setFont(new Font("맑은 고딕", Font.BOLD, 15));
+		Mybalance.setHorizontalAlignment(SwingConstants.LEFT);
+
+		// 글자가 벽에 안 붙게 함
+		Mybalance.setBorder(BorderFactory.createCompoundBorder(
+		    BorderFactory.createLineBorder(burgundyColor, 2),
+		    BorderFactory.createEmptyBorder(0, 10, 0, 0)
+		));
+		contentPane.add(Mybalance);
+		
+		Oppsitebalance = new JLabel("상대 현재 소지금 : ");
+		Oppsitebalance.setBounds(45, 552, 194, 30);
+		Oppsitebalance.setOpaque(true);
+		Oppsitebalance.setBackground(deepBrownBg);
+		Oppsitebalance.setForeground(infoTextColor);
+		Oppsitebalance.setFont(new Font("맑은 고딕", Font.BOLD, 15));
+		Oppsitebalance.setHorizontalAlignment(SwingConstants.LEFT);
+		Oppsitebalance.setBorder(BorderFactory.createCompoundBorder(
+			    BorderFactory.createLineBorder(burgundyColor, 2),
+			    BorderFactory.createEmptyBorder(0, 10, 0, 0)
+			));
+		contentPane.add(Oppsitebalance);
+		
+		gameResultLabel = new JLabel();
+		gameResultLabel.setFont(new Font("맑은 고딕", Font.BOLD, 30)); // 글자 아주 크게
+		gameResultLabel.setOpaque(true);
+		gameResultLabel.setBackground(Color.WHITE);
+		gameResultLabel.setBorder(BorderFactory.createLineBorder(Color.BLACK, 1));
+		gameResultLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		gameResultLabel.setBounds(259, 50, 391, 100);
+		gameResultLabel.setVisible(false);
+		
+		contentPane.add(gameResultLabel);
+		
+		
+		waitingLabel = new JLabel("배팅 완료");
+		waitingLabel.setBounds(296, 500, 387, 90); // 버튼 3개 전체를 덮는 크기
+
+		// 크림색 배경 + 와인색 테두리
+		waitingLabel.setOpaque(true);
+		waitingLabel.setBackground(new Color(255, 253, 245)); // 크림색
+		waitingLabel.setForeground(new Color(60, 45, 40));    // 짙은 갈색 글씨
+		waitingLabel.setFont(new Font("맑은 고딕", Font.BOLD, 18)); // 글자 크기 키움
+		waitingLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		waitingLabel.setBorder(BorderFactory.createLineBorder(new Color(139, 28, 28), 3)); // 테두리 좀 더 두껍게
+
+		// 처음에는 안 보이게 설정
+		waitingLabel.setVisible(false);
+
+		contentPane.add(waitingLabel);
+		
+		SoundManager.playBGM("Official-Audio_-IDIOTAPE-Melodie.wav");
+		
+		
+		AppendText("User " + username + " connecting " + ip + " " + port + "\n");
+		
+		
+		
+		 try {
+	            socket = new Socket(ip, Integer.parseInt(port));
+	            is = socket.getInputStream();
+	            dis = new DataInputStream(is);
+	            os = socket.getOutputStream();
+	            dos = new DataOutputStream(os);
+
+	            SendMessage("/login " + UserName);
+	            Serveraccept net = new Serveraccept(socket);
+	            net.start();
+	            
+	            PlayShow show = new PlayShow(); //playshow 가져옴
+	            
+	            btnSend.addActionListener(show); //게임시작 버튼으로 눌렀을때 서버로 데이터 받아옴
+	        } catch (NumberFormatException | IOException e) {
+	            e.printStackTrace();
+	            AppendText("connect error");
+	        }
+
+	}
+	public void showRoundResult(String message, Color color) {
+	    // 1. 텍스트와 색상 설정 후 보여주기
+	    gameResultLabel.setText(message);
+	    gameResultLabel.setForeground(color); 
+	    contentPane.setComponentZOrder(gameResultLabel, 0);
+	    gameResultLabel.setVisible(true); 
+	    
+	    // 2. 타이머 설정 (2000ms = 2초 후에 실행될 행동 정의)
+	    Timer timer = new Timer(2000, new ActionListener() {
+	        @Override
+	        public void actionPerformed(ActionEvent e) {
+	        	gameResultLabel.setVisible(false); // 2초 뒤에 사라짐
+	        }
+	    });
+	    timer.setRepeats(false); // 한 번만 실행하고 멈춤 (이거 안 하면 계속 깜빡거림)
+	    timer.start(); // 타이머 시작
+	}
+	
+	
+	
+	 // 화면에 출력
+    public void AppendText(String msg) {
+        textArea.append(msg);
+        textArea.setCaretPosition(textArea.getText().length());
+    }
+    
+    // Server Message를 수신해서 화면에 표시
+    class Serveraccept extends Thread {
+    	//서버 받는 부분 스레드로 계속 받음
+    	private DataInputStream dis;
+
+        public Serveraccept(Socket socket) {
+            try {
+                dis = new DataInputStream(socket.getInputStream());
+            } catch (IOException e) {
+                System.out.println("입력 스트림 에러");
+            }
+        }
+    	
+    	public void run() {
+            while (true) {
+                try {
+                    // Use readUTF to read messages
+                    String msg = dis.readUTF();
+                    
+                    if (!msg.startsWith("/")) {
+                        AppendText("\n"+msg);
+                    }
+                    if (msg.startsWith("/BettingOK")) { //서버에서 /BettingOK UserName 숫자값으로 왔다고 생각
+                    	String[] parts = msg.split(" ");
+                    	
+                    	String senderName = parts[1];
+                        String confirmedBet = parts[2];
+                        
+                        if(UserName.equals(senderName)) {
+	                        MybettingCount.setText(confirmedBet);
+	                       
+	                        BettingUp.setVisible(false);; //배팅 상승 버튼 비활성화
+	                        BettingDown.setVisible(false);; //배팅 하락 버튼 비활성화
+	                        BettingComplete.setVisible(false);; //배팅 완료 버튼 비활성화
+	                        waitingLabel.setVisible(true);
+	                    }
+                        else{
+                        	OppsiteCount.setText(confirmedBet);
+                        }
+                    }
+                    //배팅 결과 전달 받음 형식: /BettingOk1은 무조건 아래 자기 카드를 주는 것.
+                    //숫자 유저이름 + 배팅금액 + 현재 금액 + 이미지 형식으로 받음
+                    if(msg.startsWith("/BettingOK1")) {
+                    	String[] parts = msg.split(" ");
+                    	String senderName = parts[1];
+                        String confirmedBet = parts[2];
+                        String currentbalance = parts[3];
+                        String cardImg = parts[4]; //카드가 들어있는 주소 문자열이 들어옴
+                        if(UserName.equals(senderName)) {
+                        	Mybalance.setText("나의 현재 소지금 : "+ currentbalance);
+                        	setCardImage(myCardLabel, cardImg);
+                        	myBetMoney = Integer.parseInt(currentbalance);
+                        }
+                        	
+                    }
+                    //BettingOk2는 무조건 위에 있는 상대방의 카드 정보를 주는 것
+                    if(msg.startsWith("/BettingOK2")) {
+                    	String[] parts = msg.split(" ");
+                    	String senderName = parts[1];
+                        String confirmedBet = parts[2];
+                        String currentbalance = parts[3];
+                        String cardImg = parts[4]; //카드가 들어있는 주소 문자열이 들어옴
+                        
+                        if(!UserName.equals(senderName)) {
+                        	Oppsitebalance.setText("상대 현재 소지금 : "+ currentbalance);
+                        	setCardImage(oppositeCardLabel, cardImg);
+                        }
+                    }
+                    else if (msg.startsWith("/RoundResult")) {
+                        String[] parts = msg.split(" ");
+                        String result = parts[1]; // WIN, LOSE, DRAW 중 하나
+                        if(result.equals("WIN")) {
+                        	showRoundResult("라운드 승리", Color.BLUE);
+                        }
+                        else if(result.equals("LOSE")) {
+                        	showRoundResult("라운드 패배", Color.RED);
+                        }
+                        else if(result.equals("DRAW")){
+                        	showRoundResult("라운드 비김", Color.GREEN);
+                        }
+                    }
+                    
+                    //초기 소지금 정보 확인
+                    else if(msg.startsWith("/MyMoney1")) { //서버에서 "/MyMoney 유저 이름 잔액" 형식으로 데이터 보냄
+                    	String[] parts = msg.split(" ");
+                        String serverMoney = parts[2];
+                    	Mybalance.setText("나의 현재 소지금 : " + serverMoney);
+                    	myBetMoney = Integer.parseInt(serverMoney);
+                    }
+                    else if(msg.startsWith("/MyMoney2")){
+                    	String[] parts = msg.split(" ");
+                        String serverMoney = parts[2];
+                        
+                        String UserName = parts[1];
+                        OppositeUserName.setText(UserName);
+                    	Oppsitebalance.setText("상대 현재 소지금 : " + serverMoney);
+                    }
+                    //play 확인 버튼을 누른뒤 라운드 초기화를 위해 서버에서 데이터를 보내줌
+                    //데이터 형식 유저이름 + 라운드 + 카드 문자열
+                    //requestCard1은 나의 부분만 제공
+                    else if(msg.startsWith("/requestCard1")) {
+                    	String[] parts = msg.split(" ");
+                    	String senderName = parts[1];
+                        String serverRound = parts[2];
+                        String cardImg = parts[3];
+                        //현재 배팅하는 부분은 1,2들중 하나만 들어가도 됌
+                        currentBet=0;
+                        changeBettCount.setText(Integer.toString(currentBet));
+                        //이 부분도 한번만 실행
+                        BettingUp.setVisible(true); //배팅 상승 버튼 활성화
+                        BettingDown.setVisible(true);; //배팅 하락 버튼 활성화
+                        BettingComplete.setVisible(true); //배팅 완료 버튼 활성화
+                        waitingLabel.setVisible(false);
+                        
+                        if(UserName.equals(senderName)) {
+                        	MybettingCount.setText("0");
+                        	setCardImage(myCardLabel, cardImg);
+                        }
+                        if(serverRound.equals("5")) {
+                        	showRoundResult("이벤트 라운드 : 카드 비공개 라운드", Color.BLACK);
+                        }
+                        else if(serverRound.equals("7"))
+                        {
+                        	showRoundResult("이벤트 라운드 : 50골드 지원", Color.BLACK);
+                        }
+                        
+                    }
+                    
+                    //requestCard2은 상대의 부분만 제공
+                    else if(msg.startsWith("/requestCard2")) {
+                    	String[] parts = msg.split(" ");
+                    	String senderName = parts[1];
+                        String serverRound = parts[2];
+                        String cardImg = parts[3];
+                        
+                        if(!UserName.equals(senderName)) {
+                        	OppsiteCount.setText("0");
+                        	setCardImage(oppositeCardLabel, cardImg);
+                        }
+                        if(serverRound.equals("5")) {
+                        	showRoundResult("카드 비공개 라운드", Color.BLACK);
+                        }
+                        else if(serverRound.equals("7"))
+                        {
+                        	showRoundResult("50골드 지원 라운드", Color.BLACK);
+                        }
+                    }
+                    
+                    //최종 게임 승리 패배 결정
+					else if(msg.startsWith("/FinalResult")) {
+						 String[] parts = msg.split(" ");
+	                     String result = parts[1]; // WIN, LOSE, DRAW 중 하나
+	                     if(result.equals("WIN")) {
+	                    	 SoundManager.playClickSound("mixkit-small-win-2020.wav");
+	                    	 showCustomFinalDialog("최종 게임 승리!", Color.BLUE);
+	                        }
+	                        else if(result.equals("LOSE")) {
+	                        	SoundManager.playClickSound("mixkit-retro-arcade-game-over-470.wav");
+	                        	showCustomFinalDialog("최종 게임 패배!", Color.RED);
+	                        }
+	                        else if(result.equals("DRAW")){
+	                        	 showCustomFinalDialog("최종 게임 무승부!", Color.GREEN);
+	                        }
+                    }
+                } catch (IOException e) {
+                    AppendText("dis.read() error");
+                    try {
+                        dos.close();
+                        dis.close();
+                        socket.close();
+                        break;
+                    } catch (Exception ex) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    //커스텀 다이얼로그 생성
+    public void showCustomFinalDialog(String resultText, Color color) {
+
+        // 다이얼로그 생성
+        JDialog dialog = new JDialog(GameClientView.this, "게임 결과", true);
+        dialog.setSize(400, 250);
+        dialog.setLocationRelativeTo(GameClientView.this);
+        dialog.getContentPane().setLayout(null);
+        dialog.setResizable(false);
+
+        //  배경 패널
+        JPanel panel = new JPanel();
+        panel.setBounds(0, 0, 400, 250);
+        panel.setLayout(null);
+        panel.setBackground(new Color(255, 245, 230)); 
+        dialog.getContentPane().add(panel);
+
+        // 결과 라벨
+        JLabel label = new JLabel(resultText, SwingConstants.CENTER);
+        label.setBounds(20, 30, 360, 80);
+        label.setFont(new Font("맑은 고딕", Font.BOLD, 28));
+        label.setForeground(color);
+        panel.add(label);
+
+        //  확인 버튼 꾸미기
+        JButton okBtn = new JButton("게임 재시작");
+        okBtn.setBounds(130, 150, 140, 40);
+        okBtn.setFont(new Font("맑은 고딕", Font.BOLD, 16));
+        okBtn.setBackground(new Color(139, 28, 28));
+        okBtn.setForeground(Color.WHITE);
+        okBtn.setFocusPainted(false);
+        okBtn.addActionListener(e -> {
+        	SoundManager.playClickSound("mouse-click-290204.wav");
+            dialog.dispose(); // 창 닫기
+            
+            //  게임 재시작
+            try {
+                dos.writeUTF("/requestCard");
+                dos.flush();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        });
+        panel.add(okBtn);
+
+        dialog.setVisible(true);
+    }
+    
+ // Server에게 데이터로 전송시 사용
+    public void SendMessage(String msg) {
+        try {
+            // Use writeUTF to send messages
+            dos.writeUTF(msg);
+        } catch (IOException e) {
+            AppendText("dos.write() error");
+            try {
+                dos.close();
+                dis.close();
+                socket.close();
+            } catch (IOException e1) {
+                e1.printStackTrace();
+                System.exit(0);
+            }
+        }
+    }
+    class PlayShow implements ActionListener // 내부클래스로 서버로부터 정보 받는 이벤트 처리 클래스
+	{
+		@Override
+		public void actionPerformed(ActionEvent e) {
+			// Send button을 눌렀을때 서버로부터 새로운 정보 받기
+			try {
+		        dos.writeUTF("/requestCard");  //  서버에게 새 카드 요청 "/requestCard"로 보내기에 이 문자열로 서버에서 처리하면됌
+		        dos.flush();
+		    } catch (Exception ex) {
+		        ex.printStackTrace();
+		    }
+			
+		}
+	}
+    public class SoundManager {
+        
+        // BGM은 제어가 필요-> 멤버 변수로 유지
+        private static Clip bgmClip; 
+
+        public static void playClickSound(String fileName, float volumeVal) {
+            try {
+                File audioFile = new File("./sounds/" + fileName);
+                
+                if (!audioFile.exists()) {
+                    System.out.println("효과음 파일이 없습니다: " + fileName);
+                    return;
+                }
+
+                AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
+                Clip clip = AudioSystem.getClip();
+                clip.open(audioStream);
+                
+                //볼륨 설정 적용
+                setVolume(clip, -30.0f);
+                
+                //효과음은 재생이 끝나면 메모리에서 삭제해야 함 (안 그러면 메모리 터짐)
+                clip.addLineListener(new LineListener() {
+                    @Override
+                    public void update(LineEvent event) {
+                        if (event.getType() == LineEvent.Type.STOP) {
+                            clip.close();
+                        }
+                    }
+                });
+
+                clip.start(); // 재생 시작
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+        
+        //볼륨 설정 없이 부르면 기본 크기(0)로 재생
+        public static void playClickSound(String fileName) {
+            playClickSound(fileName, 0.0f);
+        }
+
+        public static void playBGM(String fileName, float volumeVal) {
+            stopBGM(); // 기존 음악이 있다면 끄고 시작
+
+            try {
+                File audioFile = new File("./sounds/" + fileName);
+                if (!audioFile.exists()) {
+                    System.out.println("BGM 파일이 없습니다: " + fileName);
+                    return;
+                }
+
+                AudioInputStream audioStream = AudioSystem.getAudioInputStream(audioFile);
+                bgmClip = AudioSystem.getClip();
+                bgmClip.open(audioStream);
+
+                //볼륨 설정 적용
+                setVolume(bgmClip, -40.0f);
+
+                //무한 반복 설정
+                bgmClip.loop(Clip.LOOP_CONTINUOUSLY); 
+                
+                bgmClip.start();
+
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        
+        public static void playBGM(String fileName) {
+            playBGM(fileName, -10.0f);
+        }
+
+        //BGM 정지
+        public static void stopBGM() {
+            if (bgmClip != null && bgmClip.isRunning()) {
+                bgmClip.stop();
+                bgmClip.close();
+            }
+        }
+        
+        //실제 소리 조절
+        private static void setVolume(Clip clip, float val) {
+            try {
+                if (clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
+                    FloatControl gainControl = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+                    gainControl.setValue(val);
+                }
+            } catch (Exception e) {
+                //볼륨 조절을 지원하지 않는 파일인 경우 무시
+            }
+        }
+    }
+}
